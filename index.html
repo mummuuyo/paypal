@@ -3,48 +3,57 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>JPY → KRW 수수료·세금 역산 계산기</title>
+  <title>JPY → KRW 세금 + PayPal 역산 계산기</title>
   <style>
     :root{
       --bg:#0b0c10;
       --card:#12141b;
       --ink:#e8e8ea;
       --muted:#a9acb6;
-      --line:rgba(255,255,255,.08);
+      --line:rgba(255,255,255,.10);
       --accent:#7dd3fc;
       --bad:#fb7185;
       --ok:#86efac;
       --radius:18px;
     }
+    *{ box-sizing:border-box; }
     body{
       margin:0;
       background:linear-gradient(180deg, #0b0c10, #0b0c10 40%, #0f1220);
       color:var(--ink);
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      line-height:1.5;
       display:flex;
       justify-content:center;
       padding:24px;
     }
     .wrap{ width:min(980px, 100%); }
     h1{ font-size:20px; margin:0 0 12px; }
-    .grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+    }
     @media (max-width:860px){ .grid{ grid-template-columns:1fr; } }
+
     .card{
       background:rgba(18,20,27,.92);
       border:1px solid var(--line);
       border-radius:var(--radius);
       padding:16px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
     }
     .row{
       display:grid;
-      grid-template-columns:1fr 180px;
-      gap:10px;
+      grid-template-columns: 1fr 190px;
+      gap:12px;
       padding:10px 0;
       border-bottom:1px solid var(--line);
       align-items:center;
     }
     .row:last-child{ border-bottom:none; }
     label{ font-size:13px; color:var(--muted); }
+    .hint{ font-size:12px; color:var(--muted); margin-top:6px; }
     input, select{
       width:100%;
       background:#0e1118;
@@ -52,118 +61,305 @@
       color:var(--ink);
       border-radius:12px;
       padding:10px 12px;
+      outline:none;
       font-size:14px;
+    }
+    input:focus, select:focus{
+      border-color: rgba(125,211,252,.6);
+      box-shadow: 0 0 0 3px rgba(125,211,252,.12);
     }
     .btns{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
     button{
-      background:#0e1118;
       border:1px solid var(--line);
+      background:#0e1118;
       color:var(--ink);
       padding:10px 12px;
       border-radius:12px;
       cursor:pointer;
+      font-size:14px;
     }
-    button.primary{ background:rgba(125,211,252,.12); }
-    .out{ display:grid; gap:10px; }
-    .big{ font-size:22px; font-weight:700; }
+    button.primary{
+      background: rgba(125,211,252,.14);
+      border-color: rgba(125,211,252,.35);
+    }
+    button:hover{ filter:brightness(1.05); }
+
+    .big{
+      font-size:22px;
+      font-weight:800;
+      letter-spacing:.2px;
+      margin:6px 0 2px;
+    }
     .mono{ font-variant-numeric: tabular-nums; }
-    .warn{ color:var(--bad); font-size:12px; }
-    .ok{ color:var(--ok); font-size:12px; }
+    .box{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:12px;
+    }
+    .warn{ color:var(--bad); font-size:12px; margin-top:10px; }
+    .ok{ color:var(--ok); font-size:12px; margin-top:10px; }
+    pre{
+      margin:10px 0 0;
+      white-space:pre-wrap;
+      word-break:break-word;
+      color:var(--muted);
+      font-size:12px;
+    }
   </style>
 </head>
 <body>
-<div class="wrap">
-<h1>JPY → KRW 세금 · PayPal 수수료 역산 계산기</h1>
+  <div class="wrap">
+    <h1>JPY → KRW 세금 + PayPal 수수료 역산 계산기</h1>
 
-<div class="grid">
-<!-- 입력 -->
-<div class="card">
-  <div class="row">
-    <label>목표 수령 금액</label>
-    <input id="targetAmount" type="number" value="50000">
-  </div>
+    <div class="grid">
+      <!-- 입력 -->
+      <div class="card">
+        <div class="row">
+          <div>
+            <label>목표 수령 금액</label>
+            <div class="hint">“내가 최종적으로 남기고 싶은 금액”</div>
+          </div>
+          <input id="targetAmount" type="number" min="0" step="0.01" value="50000">
+        </div>
 
-  <div class="row">
-    <label>목표 금액 통화</label>
-    <select id="targetCurrency">
-      <option value="JPY">JPY (엔)</option>
-      <option value="KRW">KRW (원)</option>
-    </select>
-  </div>
+        <div class="row">
+          <div>
+            <label>목표 금액 통화</label>
+            <div class="hint">JPY면 엔 기준, KRW면 원 기준 목표</div>
+          </div>
+          <select id="targetCurrency">
+            <option value="JPY">JPY (엔)</option>
+            <option value="KRW">KRW (원)</option>
+          </select>
+        </div>
 
-  <div class="row">
-    <label>환율 (1 JPY = KRW)</label>
-    <input id="rate" type="number" step="0.0001" value="9.2">
-  </div>
+        <div class="row">
+          <div>
+            <label>환율 (1 JPY = ? KRW)</label>
+            <div class="hint">거래 시 적용할 환율 직접 입력</div>
+          </div>
+          <input id="rate" type="number" min="0" step="0.0001" value="9.2">
+        </div>
 
-  <div class="row">
-    <label>세금 퍼센트 (%)</label>
-    <input id="tax" type="number" step="0.01" value="3.3">
-  </div>
+        <div class="row">
+          <div>
+            <label>세금 퍼센트 (%)</label>
+            <div class="hint">예: 3.3% → 3.3 입력</div>
+          </div>
+          <input id="taxPercent" type="number" min="0" step="0.01" value="3.3">
+        </div>
 
-  <div class="row">
-    <label>PayPal 수수료 (%)</label>
-    <input id="ppPercent" type="number" step="0.01" value="4.4">
-  </div>
+        <div class="row">
+          <div>
+            <label>PayPal 수수료 (%)</label>
+            <div class="hint">예: 4.4% → 4.4 입력</div>
+          </div>
+          <input id="ppPercent" type="number" min="0" step="0.01" value="4.4">
+        </div>
 
-  <div class="row">
-    <label>PayPal 고정 수수료 (JPY)</label>
-    <input id="ppFixed" type="number" value="40">
-  </div>
+        <div class="row">
+          <div>
+            <label>PayPal 고정 수수료 (JPY)</label>
+            <div class="hint">예: 40엔 등</div>
+          </div>
+          <input id="ppFixedJPY" type="number" min="0" step="0.01" value="40">
+        </div>
 
-  <div class="btns">
-    <button class="primary" onclick="calc()">계산</button>
-  </div>
-</div>
+        <div class="row">
+          <div>
+            <label>청구액 반올림 (JPY)</label>
+            <div class="hint">예: 100엔 단위로 올림</div>
+          </div>
+          <select id="roundingJPY">
+            <option value="0">반올림 없음</option>
+            <option value="10">10엔 올림</option>
+            <option value="100" selected>100엔 올림</option>
+            <option value="500">500엔 올림</option>
+            <option value="1000">1000엔 올림</option>
+          </select>
+        </div>
 
-<!-- 결과 -->
-<div class="card">
-  <div class="out">
-    <div>
-      <div class="big mono" id="billJPY">-</div>
-      <div class="mono" id="billKRW">-</div>
+        <div class="btns">
+          <button class="primary" id="calcBtn">계산</button>
+          <button id="saveBtn">설정 저장</button>
+          <button id="loadBtn">설정 불러오기</button>
+          <button id="resetBtn">초기화</button>
+        </div>
+
+        <div class="hint">저장/불러오기는 이 브라우저 로컬 저장(localStorage)이야.</div>
+      </div>
+
+      <!-- 결과 -->
+      <div class="card">
+        <div class="box">
+          <div class="hint">상대에게 청구할 금액</div>
+          <div class="big mono" id="billJPY">-</div>
+          <div class="mono" id="billKRW">-</div>
+        </div>
+
+        <pre id="breakdown">-</pre>
+        <div class="warn" id="warn"></div>
+        <div class="ok" id="ok"></div>
+      </div>
     </div>
-    <div class="mono" id="detail"></div>
-    <div class="warn" id="warn"></div>
-    <div class="ok" id="ok"></div>
   </div>
-</div>
-</div>
-</div>
 
 <script>
-function calc(){
-  const target = Number(targetAmount.value);
-  const currency = targetCurrency.value;
-  const rate = Number(rate.value);
-  const tax = Number(tax.value)/100;
-  const pp = Number(ppPercent.value)/100;
-  const ppFixed = Number(ppFixed.value);
+  const $ = (id) => document.getElementById(id);
 
-  if(rate<=0){ warn.textContent="환율 오류"; return; }
+  function fmt(n, digits=0){
+    if (!isFinite(n)) return "-";
+    return Number(n).toLocaleString("ko-KR", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    });
+  }
 
-  let targetJPY = currency==="JPY" ? target : target/rate;
-  let targetKRW = currency==="KRW" ? target : target*rate;
+  function ceilToStep(value, step){
+    if (!step || step <= 0) return value;
+    return Math.ceil(value / step) * step;
+  }
 
-  // 세금 포함 필요 수령액
-  let afterTaxJPY = targetJPY * (1 + tax);
+  // PayPal 역산:
+  // net = gross - (gross*p + fixed)  => gross = (net + fixed) / (1 - p)
+  function grossFromNet(netJPY, p, fixedJPY){
+    if (p >= 1) return NaN;
+    return (netJPY + fixedJPY) / (1 - p);
+  }
 
-  // PayPal 역산
-  let billJPY = (afterTaxJPY + ppFixed) / (1 - pp);
-  let billKRW = billJPY * rate;
+  function readInputs(){
+    const targetAmount = parseFloat($("targetAmount").value || "0");
+    const targetCurrency = $("targetCurrency").value;
+    const rate = parseFloat($("rate").value || "0"); // 1 JPY = rate KRW
 
-  billJPYEl.textContent = billJPY.toLocaleString()+" JPY";
-  billKRWEl.textContent = "≈ "+billKRW.toLocaleString()+" KRW";
+    const tax = parseFloat($("taxPercent").value || "0") / 100;
+    const pp = parseFloat($("ppPercent").value || "0") / 100;
+    const ppFixedJPY = parseFloat($("ppFixedJPY").value || "0");
 
-  detail.textContent =
-    `목표 수령: ${targetJPY.toLocaleString()} JPY
-세금(${(tax*100).toFixed(2)}%): ${(afterTaxJPY-targetJPY).toLocaleString()} JPY
-PayPal 수수료 포함 청구액`;
+    const roundingJPY = parseInt($("roundingJPY").value || "0", 10);
 
-  ok.textContent="이 금액으로 청구하면 세금·수수료 제외 후 목표 금액 수령";
-}
-const billJPYEl=billJPY;
-const billKRWEl=billKRW;
+    return { targetAmount, targetCurrency, rate, tax, pp, ppFixedJPY, roundingJPY };
+  }
+
+  function calc(){
+    const v = readInputs();
+    $("warn").textContent = "";
+    $("ok").textContent = "";
+
+    if (!(v.rate > 0)){
+      $("warn").textContent = "환율(1 JPY = ? KRW)을 0보다 크게 입력해줘.";
+      $("billJPY").textContent = "-";
+      $("billKRW").textContent = "-";
+      $("breakdown").textContent = "-";
+      return;
+    }
+    if (v.targetAmount < 0){
+      $("warn").textContent = "목표 수령 금액은 0 이상이어야 해.";
+      return;
+    }
+    if (v.pp >= 1){
+      $("warn").textContent = "PayPal 수수료(%)는 100% 미만이어야 해.";
+      return;
+    }
+
+    // 목표를 JPY로 정규화
+    const targetJPY = (v.targetCurrency === "JPY") ? v.targetAmount : (v.targetAmount / v.rate);
+    const targetKRW = targetJPY * v.rate;
+
+    // 세금: 목표 수령액 기준으로 추가 청구해야 하는 구조(세금만큼 더 벌어야 함)
+    // needNet = target * (1 + tax)
+    const needNetJPY = targetJPY * (1 + v.tax);
+
+    // PayPal 역산(needNetJPY를 '수수료 공제 후 남는 금액'으로 만들기 위해 gross 산출)
+    let billJPY_raw = grossFromNet(needNetJPY, v.pp, v.ppFixedJPY);
+
+    // 반올림(올림) 적용
+    const billJPY = ceilToStep(billJPY_raw, v.roundingJPY);
+    const billKRW = billJPY * v.rate;
+
+    // 결과 표시
+    $("billJPY").textContent = `${fmt(billJPY, 0)} JPY`;
+    $("billKRW").textContent = `≈ ${fmt(billKRW, 0)} KRW`;
+
+    // breakdown(예상 수수료/세금)
+    const paypalFeeJPY = billJPY * v.pp + v.ppFixedJPY;
+    const afterPaypalJPY = billJPY - paypalFeeJPY;
+    const taxJPY = targetJPY * v.tax;
+
+    const lines = [
+      `목표 수령액: ${fmt(targetJPY, 2)} JPY  (≈ ${fmt(targetKRW, 0)} KRW)`,
+      `세금(${(v.tax*100).toFixed(2)}%): ${fmt(taxJPY, 2)} JPY`,
+      `세금 포함 필요 순수수령(수수료 공제 후): ${fmt(needNetJPY, 2)} JPY`,
+      ``,
+      `PayPal 수수료(${(v.pp*100).toFixed(2)}% + ${fmt(v.ppFixedJPY, 0)} JPY): 약 ${fmt(paypalFeeJPY, 2)} JPY`,
+      `PayPal 공제 후 예상 수령: ${fmt(afterPaypalJPY, 2)} JPY`,
+      ``,
+      (v.roundingJPY > 0)
+        ? `청구액 반올림: ${v.roundingJPY}엔 올림 적용 (원본 ${fmt(billJPY_raw, 2)} JPY → ${fmt(billJPY, 0)} JPY)`
+        : `청구액 반올림: 없음 (청구액 ${fmt(billJPY_raw, 2)} JPY)`
+    ];
+
+    $("breakdown").textContent = lines.join("\n");
+    $("ok").textContent = "완료! 위 ‘청구액’으로 요청하면 세금·수수료 감안 후 목표 수령액에 맞춰져.";
+  }
+
+  function save(){
+    const v = readInputs();
+    localStorage.setItem("fee_calc_tax_pp_v1", JSON.stringify(v));
+    $("ok").textContent = "설정을 저장했어.";
+    $("warn").textContent = "";
+  }
+
+  function load(){
+    const raw = localStorage.getItem("fee_calc_tax_pp_v1");
+    if (!raw){
+      $("warn").textContent = "저장된 설정이 없어.";
+      $("ok").textContent = "";
+      return;
+    }
+    const v = JSON.parse(raw);
+
+    $("targetAmount").value = v.targetAmount ?? 50000;
+    $("targetCurrency").value = v.targetCurrency ?? "JPY";
+    $("rate").value = v.rate ?? 9.2;
+    $("taxPercent").value = ((v.tax ?? 0.033) * 100);
+    $("ppPercent").value = ((v.pp ?? 0.044) * 100);
+    $("ppFixedJPY").value = v.ppFixedJPY ?? 40;
+    $("roundingJPY").value = String(v.roundingJPY ?? 100);
+
+    $("ok").textContent = "설정을 불러왔어.";
+    $("warn").textContent = "";
+    calc();
+  }
+
+  function resetAll(){
+    localStorage.removeItem("fee_calc_tax_pp_v1");
+    $("targetAmount").value = 50000;
+    $("targetCurrency").value = "JPY";
+    $("rate").value = 9.2;
+    $("taxPercent").value = 3.3;
+    $("ppPercent").value = 4.4;
+    $("ppFixedJPY").value = 40;
+    $("roundingJPY").value = "100";
+    $("ok").textContent = "초기화했어.";
+    $("warn").textContent = "";
+    calc();
+  }
+
+  // 이벤트
+  $("calcBtn").addEventListener("click", calc);
+  $("saveBtn").addEventListener("click", save);
+  $("loadBtn").addEventListener("click", load);
+  $("resetBtn").addEventListener("click", resetAll);
+
+  ["targetAmount","targetCurrency","rate","taxPercent","ppPercent","ppFixedJPY","roundingJPY"].forEach(id=>{
+    $(id).addEventListener("input", calc);
+    $(id).addEventListener("change", calc);
+  });
+
+  // 초기 계산
+  calc();
 </script>
 </body>
 </html>
